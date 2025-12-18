@@ -296,6 +296,133 @@ server <- function(input, output) {
         s$columns$titles[i] <- eurostat::label_eurostat_vars(x = s$columns$titles[i], id = input$dataset_id, lang = input$lang)
       }
 
+      ######################
+
+      # Define the basic structure for the dataset description using Data Cube and CSVW annotations
+      datasetDescription <- list(
+        "@context" = list(
+          "qb" = "http://purl.org/linked-data/cube#",
+          "dcat" = "http://www.w3.org/ns/dcat#",
+          "dc" = "http://purl.org/dc/elements/1.1/",
+          "rdfs" = "http://www.w3.org/2000/01/rdf-schema#",
+          "xsd" = "http://www.w3.org/2001/XMLSchema#",
+          "prov" = "http://www.w3.org/ns/prov#"
+        ),
+        "prov:hadDerivation" = list(
+          "@id" = v$metadata$DOI_URL,
+          "@type" = c("qb:DataSet", "dcat:Dataset"),
+          "dc:title" = switch(
+            input$lang,
+            "en" = v$metadata$Name_EN,
+            "fr" = v$metadata$Name_FR,
+            "de" = v$metadata$Name_DE
+          ),
+          "qb:structure" = list(
+            "@id" = "https://wikis.ec.europa.eu/display/EUROSTATHELP/API+SDMX+2.1+-+metadata+query",
+            "@type" = "qb:DataStructureDefinition",
+            "qb:component" = list()
+          )
+        )
+      )
+
+      # Define primary key for the table, representing it as a dimension
+      s$tableSchema$primaryKey <- s$columns$titles == "Unit of measure"
+
+      # Define foreign keys - adjust to your dataset's requirements
+      s$tableSchema$foreignKeys <- list(
+        list(
+          columnReference = s$columns$titles == "Time",
+          reference = list(
+            resource = "external_table.csv",
+            columnReference = s$columns$titles == "Unit of measure"
+          )
+        )
+      )
+
+      # Define columns with dimensions, attributes, and measures annotations for CSVW
+      s$tableSchema$columns <- list(
+        list(
+          name = "dimension_column",
+          titles = "Dimension Column",
+          dataType = "string",
+          propertyUrl = "http://example.org/vocabulary/{dimension_column}",
+          note = "qb:DimensionProperty"
+        ),
+        list(
+          name = "attribute_column",
+          titles = "Attribute Column",
+          dataType = "string",
+          propertyUrl = "http://example.org/vocabulary/{attribute_column}",
+          note = "qb:AttributeProperty"
+        ),
+        list(
+          name = "measure_column",
+          titles = "Measure Column",
+          dataType = "integer",
+          valueUrl = "http://example.org/resource/{measure_column}",
+          note = "qb:MeasureProperty"
+        )
+      )
+
+      # Define external tables with their schema, including annotations for dimensions, attributes, and measures
+      externalTables <- list(
+        list(
+          url = "path/to/external_table.csv",
+          tableSchema = list(
+            columns = list(
+              list(
+                name = "external_dimension",
+                titles = "External Dimension",
+                dataType = "string",
+                propertyUrl = "http://example.org/vocabulary/externalDimension",
+                aboutUrl = "http://example.org/item/{external_dimension}",
+                note = "qb:DimensionProperty"
+              )
+            ),
+            foreignKeys = list(
+              list(
+                columnReference = "external_dimension",
+                reference = list(
+                  resource = "main_table.csv",
+                  columnReference = "dimension_column"
+                )
+              )
+            )
+          )
+        )
+      )
+
+      # Adding CSVW annotations as components in the Data Cube structure
+      datasetDescription$`prov:hadDerivation`$`qb:structure`$`qb:component` <- lapply(s$tableSchema$columns, function(column) {
+        list(
+          "@type" = "qb:ComponentSpecification",
+          "qb:componentProperty" = list(
+            "@id" = column$propertyUrl,
+            "@type" = column$note,
+            "rdfs:label" = column$titles
+          )
+        )
+      })
+      #toJSON(datasetDescription, auto_unbox = TRUE, pretty = TRUE)
+
+
+
+      ############
+
+      # Reference to the Dataset Structure Definition (DSD)
+      dsdUrl <- "path/to/dataset_structure_definition.jsonld"
+      s$datasetStructureDefinition <- dsdUrl
+      # In practice, this JSON would be used as part of an RDF serialization process
+
+
+      #writeLines(jsonDescription)
+
+      ###############
+
+
+      ########
+      s$datasetDescription <- datasetDescription
+
       v$tb <- list(url=v$metadata$DOI_URL, tableSchema=s)
       v$m <- csvwr::create_metadata(tables=list(v$tb))
       v$json_metadata <- jsonlite::toJSON(v$m)
