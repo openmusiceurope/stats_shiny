@@ -7,6 +7,8 @@ library(rdflib)
 library(csvwr)
 library(jsonlite)
 library(jsonld)
+source("scripts/build_api_base_uri.R")
+source("scripts/get_sdmx_dataflow.R")
 
 # Define UI for application that draws a histogram
 ui <- page_navbar(
@@ -213,10 +215,11 @@ server <- function(input, output) {
         stringsAsFactors = FALSE,
         keepFlags = input$keepFlags)
 
-      v$concept_scheme <- eurostat:::get_sdmx_conceptscheme(
-        id = input$dataset_id,
-        lang = input$lang
-      )
+      # Eurostat 4.1 feature
+      # v$concept_scheme <- eurostat:::get_sdmx_conceptscheme(
+      #   id = input$dataset_id,
+      #   lang = input$lang
+      # )
 
       incProgress(1/n, detail = "Fetching citation metadata")
 
@@ -227,7 +230,7 @@ server <- function(input, output) {
 
       incProgress(1/n, detail = "Extracting metadata (Eurostat dataflow)")
 
-      v$dataflow <- eurostat:::get_sdmx_dataflow(agency = "Eurostat", id = input$dataset_id)
+      v$dataflow <- get_sdmx_dataflow(agency = "Eurostat", id = input$dataset_id)
 
       selected_lang_name <- switch(
         input$lang,
